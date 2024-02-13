@@ -1,31 +1,53 @@
 const Dosage = require("../models/dose_model");
+const translate = require("translate-google");
 
-// Add Dosage
 exports.addDosage = async (req, res) => {
-  const duration = req.body.duration;
-  const frequency = req.body.frequency;
-  const description = req.body.description;
-  const timing = req.body.timing;
+  try {
+    const userId = req.user._id;
 
-  if (timing.length !== frequency) {
-    return res.status(400).json({ message: "Add timing for all frequency" });
+    const duration = req.body.duration;
+    const frequency = req.body.frequency;
+    let description = req.body.description;
+    const timing = req.body.timing;
+    const slots = req.body.slots;
+    let title = req.body.title;
+
+    if (timing.length !== frequency) {
+      return res.status(400).json({ message: "Add timing for all frequency" });
+    }
+
+    if (timing.length !== frequency) {
+      return res.status(400).json({ message: "Add timing for all frequency" });
+    }
+    const dosage = await Dosage.create({
+      userId: userId,
+      duration: duration,
+      frequency: frequency,
+      description: description,
+      timing: timing,
+      slots: slots,
+      title: title,
+    });
+
+    if (req.get("Lang")) {
+      let lang = req.get("Lang");
+      const titleData = await translate(title, { to: lang });
+      const descriptionData = await translate(description, { to: lang });
+      title = titleData;
+      description = descriptionData;
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Dosage added successfully",
+      data: {
+        dosage,
+      },
+      statusCode: 200,
+    });
+  } catch (err) {
+    return res.status(500).send(err);
   }
-
-  const dosage = await Dosage.create({
-    duration: duration,
-    frequency: frequency,
-    description: description,
-    timing: timing,
-  });
-
-  return res.status(200).json({
-    status: "success",
-    message: "Dosage added successfully",
-    data: {
-      dosage,
-    },
-    statusCode: 200,
-  });
 };
 
 // Fetch SingleDose
@@ -47,7 +69,34 @@ exports.getDosageById = async (req, res) => {
       data: dosage,
     });
   } catch (error) {
-    console.error(error);
+    return res.status(500).json({
+      status: "error",
+      message: "Internal server error",
+      statusCode: 500,
+    });
+  }
+};
+
+exports.getDosageOfLogedIn = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const dosageId = req.params.id;
+
+    const dosages = await Dosage.find({ userId: userId });
+
+    if (!dosages) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Dosage not found or does not belong to the user",
+        statusCode: 404,
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      data: dosages,
+    });
+  } catch (error) {
     return res.status(500).json({
       status: "error",
       message: "Internal server error",
@@ -57,16 +106,14 @@ exports.getDosageById = async (req, res) => {
 };
 
 // Fetch All Dosages
-
 exports.getAllDosages = async (req, res) => {
   try {
-    const dosages = await Dosage.find();
+    const dosages = await Dosage.find({});
     return res.status(200).json({
       status: "success",
       data: dosages,
     });
   } catch (error) {
-    console.error(error);
     return res.status(500).json({
       status: "error",
       message: "Internal server error",
@@ -81,16 +128,6 @@ exports.updateDosage = async (req, res) => {
     const dosageId = req.params.id;
     const { duration, frequency, description, timing } = req.body;
 
-    let dosage = await Dosage.findById(dosageId);
-
-    if (!dosage) {
-      return res.status(404).json({
-        status: "fail",
-        message: "Dosage not found",
-        statusCode: 404,
-      });
-    }
-
     const data = {
       duration: duration,
       frequency: frequency,
@@ -99,15 +136,14 @@ exports.updateDosage = async (req, res) => {
     };
 
     await Dosage.findByIdAndUpdate(dosageId, { $set: data });
-    dosage = await Dosage.findById(dosageId);
+    const dosage = await Dosage.findById(dosageId);
 
     return res.status(200).json({
       status: "success",
       message: "Dosage updated successfully",
-      data: dosage,
+      // data: dosage,
     });
   } catch (error) {
-    console.error(error);
     return res.status(500).json({
       status: "error",
       message: "Internal server error",
@@ -119,24 +155,70 @@ exports.updateDosage = async (req, res) => {
 // Delete
 exports.deleteDosage = async (req, res) => {
   try {
+    const userId = req.user._id;
     const dosageId = req.params.id;
-    const dosage = await Dosage.findByIdAndDelete(dosageId);
+
+    const dosage = await Dosage.findOne({
+      _id: dosageId,
+    });
 
     if (!dosage) {
       return res.status(404).json({
         status: "fail",
-        message: "Dosage not found",
+        message: "Dosage not found or does not belong to the user",
+        statusCode: 404,
+      });
+    }
+
+    if (userId != dosage.userId) {
+      return res.status(401).json({
+        status: "fail",
+        message: "You are not authorized to delete this dose",
+      });
+    }
+
+    Dosage.findByIdAndDelete(dosageId);
+
+    return res.status(200).json({
+      status: "success",
+      message: "Dosage deleted successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "error",
+      message: "Internal server error",
+      statusCode: 500,
+    });
+  }
+};
+
+// mark dosage slot
+
+exports.markDosageSlot = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { dosageID, slotID, isCompleted } = req.body;
+
+    const dosage = await Dosage.findOneAndUpdate(
+      { userId: userId, _id: dosageID, "slots._id": slotID },
+      { $set: { "slots.$.isCompleted": isCompleted } },
+      { new: true }
+    );
+
+    if (!dosage) {
+      return res.status(404).json({
+        status: "fail",
+        message: "Dosage or slot not found",
         statusCode: 404,
       });
     }
 
     return res.status(200).json({
       status: "success",
-      message: "Dosage deleted successfully",
+      message: "Dosage slot marked as completed successfully",
       data: dosage,
     });
   } catch (error) {
-    console.error(error);
     return res.status(500).json({
       status: "error",
       message: "Internal server error",

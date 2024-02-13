@@ -24,15 +24,48 @@ const userSchema = mongoose.Schema({
     type: String,
   },
   dob: {
-    type: Date,
+    type: String,
   },
   profileImage: {
     type: String,
   },
+  verifyEmail: {
+    type: Boolean,
+    default: false,
+  },
   password: {
     type: String,
     required: [true, "Password is required"],
-    select: false,
+  },
+  isDiabetes: {
+    type: Boolean,
+    default: false,
+  },
+  heart: {
+    type: String,
+  },
+  lungs: {
+    type: String,
+  },
+  liver: {
+    type: String,
+  },
+  allergies: {
+    type: Array,
+  },
+  bmi: {
+    type: Number,
+  },
+  degree: {
+    type: String,
+  },
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  role: {
+    type: String,
+    default: "user",
   },
   bookmarks: [
     {
