@@ -28,12 +28,12 @@ exports.signup = async (req, res) => {
       profileImage: req.body.profileImage,
     });
 
-    const message = `Dear ${user.username},\n$Welcome to AyurAid!`;
-    await sendEmail({
-      email: email,
-      subject: "Welcome to AyurAid",
-      message,
-    });
+    // const message = `Dear ${user.username},\n$Welcome to AyurAid!`;
+    // await sendEmail({
+    //   email: email,
+    //   subject: "Welcome to AyurAid",
+    //   message,
+    // });
 
     const token = jwt.sign(
       { id: user._id },
